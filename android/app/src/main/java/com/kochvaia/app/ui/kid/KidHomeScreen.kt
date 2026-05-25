@@ -2,6 +2,7 @@ package com.kochvaia.app.ui.kid
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -157,43 +158,46 @@ fun KidHomeScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center).padding(16.dp),
                 )
-                else -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(24.dp),
-                ) {
+                else -> {
                     val today = LocalDate.now(ZoneId.of(state.familyTz))
-                    KidProfileBlock(
-                        kid = state.self,
-                        summary = state.summary,
-                        days = state.days,
-                        weekAnchor = state.weekAnchor,
-                        canGoNext = state.weekAnchor.isBefore(today),
-                        onPrevWeek = { viewModel.shiftWeek(-7) },
-                        onNextWeek = { viewModel.shiftWeek(7) },
-                    )
-                    if (state.siblings.isNotEmpty()) {
-                        Spacer(Modifier.height(32.dp))
-                        Text(
-                            "Family",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            items(state.siblings, key = { it.kid.id }) { row ->
-                                SiblingChip(
-                                    kid = row.kid,
-                                    availableStars = row.availableStars,
-                                    onClick = { onOpenSibling(row.kid.id) },
-                                )
+                    KidProfileLayout(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        header = { isWide ->
+                            KidProfileHeader(
+                                kid = state.self,
+                                summary = state.summary,
+                                avatarSize = if (isWide) 72.dp else 96.dp,
+                                starsStyle = if (isWide) MaterialTheme.typography.displayMedium
+                                else MaterialTheme.typography.displayLarge,
+                            )
+                        },
+                        body = {
+                            KidProfileWeek(
+                                days = state.days,
+                                weekAnchor = state.weekAnchor,
+                                canGoNext = state.weekAnchor.isBefore(today),
+                                onPrevWeek = { viewModel.shiftWeek(-7) },
+                                onNextWeek = { viewModel.shiftWeek(7) },
+                            )
+                            if (state.siblings.isNotEmpty()) {
+                                Spacer(Modifier.height(24.dp))
+                                Text("Family", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.height(8.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    items(state.siblings, key = { it.kid.id }) { row ->
+                                        SiblingChip(
+                                            kid = row.kid,
+                                            availableStars = row.availableStars,
+                                            onClick = { onOpenSibling(row.kid.id) },
+                                        )
+                                    }
+                                }
                             }
-                        }
-                    }
-                    Spacer(Modifier.height(48.dp))
+                        },
+                    )
                 }
             }
             if (state.newStars.isNotEmpty()) {

@@ -175,46 +175,49 @@ fun KidSiblingScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center).padding(16.dp),
                 )
-                else -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(24.dp),
-                ) {
+                else -> {
                     val today = LocalDate.now(ZoneId.of(state.familyTz))
-                    KidProfileBlock(
-                        kid = state.sibling,
-                        summary = state.summary,
-                        days = state.days,
-                        weekAnchor = state.weekAnchor,
-                        canGoNext = state.weekAnchor.isBefore(today),
-                        onPrevWeek = { viewModel.shiftWeek(kidId, -7) },
-                        onNextWeek = { viewModel.shiftWeek(kidId, 7) },
-                    )
-                    if (state.familyOthers.isNotEmpty()) {
-                        Spacer(Modifier.height(32.dp))
-                        Text(
-                            "Family",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            items(state.familyOthers, key = { it.kid.id }) { row ->
-                                SiblingChip(
-                                    kid = row.kid,
-                                    availableStars = row.availableStars,
-                                    onClick = {
-                                        if (row.kid.id == state.selfKidId) onOpenOwnHome()
-                                        else onOpenSibling(row.kid.id)
-                                    },
-                                )
+                    KidProfileLayout(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        header = { isWide ->
+                            KidProfileHeader(
+                                kid = state.sibling,
+                                summary = state.summary,
+                                avatarSize = if (isWide) 72.dp else 96.dp,
+                                starsStyle = if (isWide) MaterialTheme.typography.displayMedium
+                                else MaterialTheme.typography.displayLarge,
+                            )
+                        },
+                        body = {
+                            KidProfileWeek(
+                                days = state.days,
+                                weekAnchor = state.weekAnchor,
+                                canGoNext = state.weekAnchor.isBefore(today),
+                                onPrevWeek = { viewModel.shiftWeek(kidId, -7) },
+                                onNextWeek = { viewModel.shiftWeek(kidId, 7) },
+                            )
+                            if (state.familyOthers.isNotEmpty()) {
+                                Spacer(Modifier.height(24.dp))
+                                Text("Family", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.height(8.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    items(state.familyOthers, key = { it.kid.id }) { row ->
+                                        SiblingChip(
+                                            kid = row.kid,
+                                            availableStars = row.availableStars,
+                                            onClick = {
+                                                if (row.kid.id == state.selfKidId) onOpenOwnHome()
+                                                else onOpenSibling(row.kid.id)
+                                            },
+                                        )
+                                    }
+                                }
                             }
-                        }
-                        Spacer(Modifier.height(48.dp))
-                    }
+                        },
+                    )
                 }
             }
             if (state.newStars.isNotEmpty()) {
