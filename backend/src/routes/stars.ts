@@ -102,11 +102,13 @@ starsRoutes.post("/kids/:id/deductions", requireParent, async (c) => {
   const batchId = newId();
 
   // D1 supports batch (atomic) and prepared parameter binding.
-  // Step 1: pick the oldest N unused stars.
+  // Step 1: pick the N stars with the oldest earned_date (then awarded_at,
+  // then id for full determinism if a kid somehow has two stars on the same
+  // day — shouldn't happen due to the unique index, but defense in depth).
   const { results } = await c.env.DB.prepare(
     `SELECT id FROM stars
        WHERE kid_id = ? AND used_at IS NULL
-       ORDER BY awarded_at ASC, id ASC
+       ORDER BY earned_date ASC, awarded_at ASC, id ASC
        LIMIT ?`,
   )
     .bind(kidId, count)

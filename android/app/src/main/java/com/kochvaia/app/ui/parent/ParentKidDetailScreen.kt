@@ -11,10 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -52,6 +49,8 @@ import com.kochvaia.app.data.remote.SummaryResponse
 import com.kochvaia.app.data.repo.KidRepository
 import com.kochvaia.app.data.repo.StarRepository
 import com.kochvaia.app.ui.common.DayStrip
+import com.kochvaia.app.ui.common.WeekHeader
+import com.kochvaia.app.ui.common.weekRange
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,9 +58,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -173,13 +169,6 @@ class ParentKidDetailViewModel @Inject constructor(
     }
 
     fun consumeToast() { _state.value = _state.value.copy(toast = null) }
-
-    private fun weekRange(anchor: LocalDate): Pair<LocalDate, LocalDate> {
-        // 7-day window ending on the anchor day.
-        val to = anchor
-        val from = anchor.minusDays(6)
-        return from to to
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,9 +227,10 @@ fun ParentKidDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     SummaryCard(summary = state.summary)
+                    val today = state.familyTz?.let { LocalDate.now(ZoneId.of(it)) }
                     WeekHeader(
                         anchor = state.weekAnchor,
-                        familyTz = state.familyTz,
+                        canGoNext = today != null && state.weekAnchor.isBefore(today),
                         onPrev = { viewModel.shiftWeek(kidId, -7) },
                         onNext = { viewModel.shiftWeek(kidId, 7) },
                     )
@@ -335,35 +325,6 @@ private fun StatColumn(label: String, value: Int) {
         Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
-
-@Composable
-private fun WeekHeader(
-    anchor: LocalDate,
-    familyTz: String?,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-) {
-    val today = familyTz?.let { LocalDate.now(ZoneId.of(it)) }
-    val canGoNext = today != null && anchor.isBefore(today)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        IconButton(onClick = onPrev) {
-            Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous week")
-        }
-        val from = anchor.minusDays(6)
-        val label = "${monthDay(from)} – ${monthDay(anchor)}"
-        AssistChip(onClick = {}, label = { Text(label) })
-        IconButton(onClick = onNext, enabled = canGoNext) {
-            Icon(Icons.Filled.ChevronRight, contentDescription = "Next week")
-        }
-    }
-}
-
-private fun monthDay(d: LocalDate): String =
-    "${d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${d.dayOfMonth}"
 
 @Composable
 private fun DeductDialog(

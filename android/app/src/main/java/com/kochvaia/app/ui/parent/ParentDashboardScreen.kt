@@ -47,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,6 +57,8 @@ import com.kochvaia.app.data.remote.KidDto
 import com.kochvaia.app.data.repo.AuthRepository
 import com.kochvaia.app.data.repo.KidRepository
 import com.kochvaia.app.data.repo.StarRepository
+import com.kochvaia.app.ui.common.KidAvatar
+import com.kochvaia.app.ui.common.toComposeColor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -241,7 +242,12 @@ private fun KidCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AvatarChip(emoji = row.kid.avatarEmoji, colorHex = row.kid.avatarColor)
+            KidAvatar(
+                emoji = row.kid.avatarEmoji,
+                colorHex = row.kid.avatarColor,
+                size = 56.dp,
+                textStyle = MaterialTheme.typography.headlineSmall,
+            )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -314,21 +320,6 @@ private fun KidCard(
 }
 
 @Composable
-private fun AvatarChip(emoji: String, colorHex: String) {
-    val bg = runCatching { Color(android.graphics.Color.parseColor(colorHex)) }
-        .getOrDefault(MaterialTheme.colorScheme.secondary)
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(CircleShape)
-            .background(bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(emoji, style = MaterialTheme.typography.headlineSmall)
-    }
-}
-
-@Composable
 private fun EmptyKidsHint(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.padding(32.dp),
@@ -393,7 +384,7 @@ private fun AddKidDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(android.graphics.Color.parseColor(c)))
+                                .background(c.toComposeColor(MaterialTheme.colorScheme.secondary))
                                 .clickable { color = c },
                         )
                     }

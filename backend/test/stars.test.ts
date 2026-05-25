@@ -87,46 +87,33 @@ describe("POST /kids/:id/deductions (oldest-first)", () => {
     expect(res.status).toBe(201);
   }
 
-  it("consumes oldest unused stars first", async () => {
+  it("consumes oldest-earned stars first, regardless of award order", async () => {
     const fam = await seedFamily();
-    // Award stars for 5 past days in chronological order.
     const dates = [0, 1, 2, 3, 4].map((d) =>
       new Date(Date.now() - d * 86400_000).toISOString().slice(0, 10),
     );
-    // d=0 today, d=4 oldest. Award in arbitrary order.
+    // Insert in deliberately scrambled order: deduction must order by earned_date.
     await awardOn(fam, dates[2]!);
     await awardOn(fam, dates[0]!);
     await awardOn(fam, dates[4]!);
     await awardOn(fam, dates[1]!);
     await awardOn(fam, dates[3]!);
 
-    // Deduct 3. Oldest-first by awarded_at — but the spec is "starting from oldest".
-    // Our implementation orders by awarded_at, which equals award time. To make
-    // the test deterministic for "oldest day," award oldest-day first below.
-    // Re-seed with strict ordering by date:
-    await resetDb();
-    const fam2 = await seedFamily();
-    for (let i = dates.length - 1; i >= 0; i--) {
-      await awardOn(fam2, dates[i]!);
-    }
-    // Now stars are inserted in awarded_at order matching oldest -> newest day.
-    const ded = await callApp("POST", `/kids/${fam2.kidIds[0]}/deductions`, {
-      token: fam2.parentToken,
+    const ded = await callApp("POST", `/kids/${fam.kidIds[0]}/deductions`, {
+      token: fam.parentToken,
       body: { count: 3, reason: "screen time" },
     });
     expect(ded.status).toBe(201);
 
-    // Range covers all 5 days. Oldest 3 should be 'used', newest 2 'given'.
-    const from = dates[4]!; // oldest
-    const to = dates[0]!;   // newest
-    const daysRes = await callApp("GET", `/kids/${fam2.kidIds[0]}/days?from=${from}&to=${to}`, {
-      token: fam2.parentToken,
+    const from = dates[4]!;
+    const to = dates[0]!;
+    const daysRes = await callApp("GET", `/kids/${fam.kidIds[0]}/days?from=${from}&to=${to}`, {
+      token: fam.parentToken,
     });
     expect(daysRes.status).toBe(200);
     const daysBody = (await daysRes.json()) as {
       days: { date: string; status: "none" | "given" | "used" }[];
     };
-    // Sorted ascending by date in API; oldest 3 used, newest 2 given.
     const statuses = daysBody.days.map((d) => d.status);
     expect(statuses).toEqual(["used", "used", "used", "given", "given"]);
   });

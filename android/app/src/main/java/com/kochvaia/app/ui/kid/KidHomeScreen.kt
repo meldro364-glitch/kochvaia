@@ -3,10 +3,16 @@ package com.kochvaia.app.ui.kid
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -24,32 +30,43 @@ import androidx.lifecycle.viewModelScope
 import com.kochvaia.app.data.SessionStore
 import com.kochvaia.app.data.remote.ApiErrorAdapter
 import com.kochvaia.app.data.remote.DayDto
+import com.kochvaia.app.data.remote.KidDto
+import com.kochvaia.app.data.remote.SeenStar
 import com.kochvaia.app.data.remote.SummaryResponse
+import com.kochvaia.app.data.repo.KidRepository
 import com.kochvaia.app.data.repo.StarRepository
-import com.kochvaia.app.ui.common.DayStrip
+import com.kochvaia.app.ui.common.StarBurstOverlay
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
-/**
- * v1 kid home screen — shows the kid's own 7-day strip + summary. Phase 3
- * adds week-back paging, sibling list, and the /seen-driven animations.
- */
 @HiltViewModel
 class KidHomeViewModel @Inject constructor(
     private val sessionStore: SessionStore,
+    private val kidsRepo: KidRepository,
     private val stars: StarRepository,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
+    data class SiblingRow(val kid: KidDto, val availableStars: Int?)
+
     data class State(
         val loading: Boolean = true,
         val error: String? = null,
+        val familyTz: String = "UTC",
+        val self: KidDto? = null,
+        val siblings: List<SiblingRow> = emptyList(),
+        val weekAnchor: LocalDate = LocalDate.now(),
         val days: List<DayDto> = emptyList(),
         val summary: SummaryResponse? = null,
+        val newStars: List<SeenStar> = emptyList(),
     )
 
     private val _state = MutableStateFlow(State())
@@ -57,22 +74,70 @@ class KidHomeViewModel @Inject constructor(
 
     fun load() {
         val kidId = sessionStore.load()?.kidId ?: run {
-            _state.value = State(loading = false, error = "no_kid_session")
+            _state.value = State(loading = false, error = "Not signed in")
             return
         }
         viewModelScope.launch {
-            _state.value = State(loading = true)
+            _state.value = _state.value.copy(loading = true, error = null)
             runCatching {
-                val today = LocalDate.now()
-                val from = today.minusDays(6)
-                val days = stars.days(kidId, from.toString(), today.toString()).days
-                val summary = stars.summary(kidId)
-                // Fire the seen call to advance the checkpoint (animations TBD).
-                runCatching { stars.seen(kidId) }
-                State(loading = false, days = days, summary = summary)
-            }.onSuccess { _state.value = it }
+                // Resolve family + kid list once, then fan out all per-kid calls
+                // in parallel — they're independent and each is a round-trip.
+                coroutineScope {
+                    val meDeferred = async { kidsRepo.me() }
+                    val listDeferred = async { kidsRepo.list() }
+                    val me = meDeferred.await()
+                    val list = listDeferred.await()
+                    val self = list.firstOrNull { it.id == kidId }
+                    if (self == null) {
+                        _state.value = State(loading = false, error = "Your profile isn't in this family.")
+                        return@coroutineScope null
+                    }
+                    val tz = me.family.tz
+                    val anchor = LocalDate.now(ZoneId.of(tz))
+                    val from = anchor.minusDays(6).toString()
+                    val to = anchor.toString()
+                    val daysDef = async { stars.days(kidId, from, to).days }
+                    val summaryDef = async { stars.summary(kidId) }
+                    // /seen is best-effort: failure means we just skip animations.
+                    val seenDef = async { runCatching { stars.seen(kidId) }.getOrNull() }
+                    val sibSummariesDef = list.filter { it.id != kidId }.map { sib ->
+                        async {
+                            SiblingRow(
+                                sib,
+                                runCatching { stars.summary(sib.id).availableStars }.getOrNull(),
+                            )
+                        }
+                    }
+                    State(
+                        loading = false,
+                        familyTz = tz,
+                        self = self,
+                        siblings = sibSummariesDef.awaitAll(),
+                        weekAnchor = anchor,
+                        days = daysDef.await(),
+                        summary = summaryDef.await(),
+                        newStars = seenDef.await()?.newStars.orEmpty(),
+                    )
+                }
+            }.onSuccess { if (it != null) _state.value = it }
                 .onFailure { _state.value = State(loading = false, error = errors.message(it)) }
         }
+    }
+
+    fun shiftWeek(deltaDays: Long) {
+        val kidId = sessionStore.load()?.kidId ?: return
+        val cur = _state.value
+        val today = LocalDate.now(ZoneId.of(cur.familyTz))
+        val newAnchor = minOf(cur.weekAnchor.plusDays(deltaDays), today)
+        viewModelScope.launch {
+            runCatching {
+                stars.days(kidId, newAnchor.minusDays(6).toString(), newAnchor.toString()).days
+            }.onSuccess { _state.value = cur.copy(weekAnchor = newAnchor, days = it) }
+        }
+    }
+
+    fun consumeAnimations() {
+        _state.value = _state.value.copy(newStars = emptyList())
     }
 }
 
@@ -83,34 +148,61 @@ fun KidHomeScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.load() }
     val state by viewModel.state.collectAsState()
+
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val err = state.error
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.error != null -> Text(
-                    state.error!!,
+                err != null -> Text(
+                    err,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center).padding(16.dp),
                 )
                 else -> Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Top,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(24.dp),
                 ) {
-                    Text(
-                        "${state.summary?.availableStars ?: 0} ⭐",
-                        style = MaterialTheme.typography.displayLarge,
+                    val today = LocalDate.now(ZoneId.of(state.familyTz))
+                    KidProfileBlock(
+                        kid = state.self,
+                        summary = state.summary,
+                        days = state.days,
+                        weekAnchor = state.weekAnchor,
+                        canGoNext = state.weekAnchor.isBefore(today),
+                        onPrevWeek = { viewModel.shiftWeek(-7) },
+                        onNextWeek = { viewModel.shiftWeek(7) },
                     )
-                    Text(
-                        "available right now",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Text("Last 7 days", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
-                    DayStrip(days = state.days)
+                    if (state.siblings.isNotEmpty()) {
+                        Spacer(Modifier.height(32.dp))
+                        Text(
+                            "Family",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            items(state.siblings, key = { it.kid.id }) { row ->
+                                SiblingChip(
+                                    kid = row.kid,
+                                    availableStars = row.availableStars,
+                                    onClick = { onOpenSibling(row.kid.id) },
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(48.dp))
                 }
+            }
+            if (state.newStars.isNotEmpty()) {
+                StarBurstOverlay(
+                    stars = state.newStars,
+                    onFinished = { viewModel.consumeAnimations() },
+                )
             }
         }
     }
