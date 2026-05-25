@@ -1,0 +1,2 @@
+# Copy to .dev.vars (gitignored) for local dev.
+GOOGLE_OAUTH_CLIENT_ID="your-android-oauth-client-id.apps.googleusercontent.com"

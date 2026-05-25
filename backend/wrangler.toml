@@ -1,0 +1,15 @@
+name = "kochvaia"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Set with: wrangler secret put GOOGLE_OAUTH_CLIENT_ID
+# (or define in .dev.vars for local dev)
+[vars]
+ENVIRONMENT = "dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kochvaia"
+database_id = "b74c73da-ab9b-4f08-93db-2f7313a8fe7b"
+migrations_dir = "migrations"

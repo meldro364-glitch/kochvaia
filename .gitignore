@@ -1,0 +1,23 @@
+# Node / Wrangler
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+*.log
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+.idea/
+captures/
+.cxx/
+*.iml
+*.keystore
+*.jks
+google-services.json
+android/app/app.local.properties
+
+# OS
+.DS_Store
+Thumbs.db

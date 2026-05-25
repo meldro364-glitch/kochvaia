@@ -1,0 +1,8 @@
+# Copy to app.local.properties (gitignored) for local dev overrides.
+# API_BASE_URL defaults to the deployed Worker.
+# API_BASE_URL=https://kochvaia.meldro364.workers.dev
+
+# Required for Google Sign-In on device. Get it from Google Cloud Console
+# (OAuth 2.0 Client ID, type = Web application — the Web client id, not the
+# Android one — is what Credential Manager sends as the audience).
+GOOGLE_OAUTH_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
