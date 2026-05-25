@@ -19,9 +19,16 @@ describe("GET /me", () => {
     const fam = await seedFamily();
     const res = await callApp("GET", "/me", { token: fam.kidTokens[0] });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { role: string; kid: { id: string } };
+    const body = (await res.json()) as {
+      role: string;
+      kid: { id: string; displayName: string; avatarEmoji: string; avatarColor: string };
+    };
     expect(body.role).toBe("kid");
     expect(body.kid.id).toBe(fam.kidIds[0]);
+    // Wire format must be camelCase so KidDto on Android parses without aliasing.
+    expect(body.kid.displayName).toBeTruthy();
+    expect(body.kid.avatarEmoji).toBeTruthy();
+    expect(body.kid.avatarColor).toBeTruthy();
   });
 
   it("401 without authorization", async () => {

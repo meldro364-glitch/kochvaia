@@ -29,10 +29,12 @@ kidsRoutes.get("/me", requireSession, async (c) => {
     });
   }
   const kid = await c.env.DB.prepare(
-    "SELECT id, display_name, avatar_emoji, avatar_color FROM kids WHERE id = ?",
+    `SELECT id, display_name AS displayName, avatar_emoji AS avatarEmoji,
+            avatar_color AS avatarColor
+       FROM kids WHERE id = ?`,
   )
     .bind(session.kidId)
-    .first<{ id: string; display_name: string; avatar_emoji: string; avatar_color: string }>();
+    .first<{ id: string; displayName: string; avatarEmoji: string; avatarColor: string }>();
   return c.json({
     role: "kid" as const,
     family,

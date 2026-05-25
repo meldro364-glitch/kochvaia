@@ -157,6 +157,21 @@ private fun NavGraphBuilder.kidGraph(
         arguments = listOf(navArgument("kidId") { type = NavType.StringType }),
     ) { entry ->
         val kidId = entry.arguments?.getString("kidId").orEmpty()
-        KidSiblingScreen(kidId = kidId, onBack = { nav.popBackStack() })
+        KidSiblingScreen(
+            kidId = kidId,
+            onBack = { nav.popBackStack() },
+            // Tapping our own paired-as chip → return to KID_HOME without
+            // stacking another screen.
+            onOpenOwnHome = {
+                nav.popBackStack(Routes.KID_HOME, inclusive = false)
+            },
+            // Jumping between siblings replaces the current sibling screen so
+            // the back stack stays shallow (HOME → SIBLING, not HOME → A → B → C).
+            onOpenSibling = { otherId ->
+                nav.navigate(Routes.kidSibling(otherId)) {
+                    popUpTo(Routes.KID_SIBLING) { inclusive = true }
+                }
+            },
+        )
     }
 }

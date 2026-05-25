@@ -26,6 +26,13 @@ import com.kochvaia.app.ui.common.WeekHeader
 import java.time.LocalDate
 
 /**
+ * One entry in the "Family" row shown on kid screens. The chip may represent
+ * the paired-as kid (when viewing a sibling) — that's why we use this name
+ * over "Sibling".
+ */
+data class FamilyMember(val kid: KidDto, val availableStars: Int?)
+
+/**
  * The big top section of any kid profile screen — avatar, name, big star
  * count, 7-day strip with week-back navigation. Shared by KidHomeScreen and
  * KidSiblingScreen.

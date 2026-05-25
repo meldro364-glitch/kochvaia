@@ -55,14 +55,12 @@ class KidHomeViewModel @Inject constructor(
     private val stars: StarRepository,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
-    data class SiblingRow(val kid: KidDto, val availableStars: Int?)
-
     data class State(
         val loading: Boolean = true,
         val error: String? = null,
         val familyTz: String = "UTC",
         val self: KidDto? = null,
-        val siblings: List<SiblingRow> = emptyList(),
+        val siblings: List<FamilyMember> = emptyList(),
         val weekAnchor: LocalDate = LocalDate.now(),
         val days: List<DayDto> = emptyList(),
         val summary: SummaryResponse? = null,
@@ -102,7 +100,7 @@ class KidHomeViewModel @Inject constructor(
                     val seenDef = async { runCatching { stars.seen(kidId) }.getOrNull() }
                     val sibSummariesDef = list.filter { it.id != kidId }.map { sib ->
                         async {
-                            SiblingRow(
+                            FamilyMember(
                                 sib,
                                 runCatching { stars.summary(sib.id).availableStars }.getOrNull(),
                             )

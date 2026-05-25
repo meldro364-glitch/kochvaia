@@ -1,9 +1,15 @@
 package com.kochvaia.app.ui.kid
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,10 +38,12 @@ import com.kochvaia.app.data.remote.KidDto
 import com.kochvaia.app.data.remote.SeenStar
 import com.kochvaia.app.data.remote.SummaryResponse
 import com.kochvaia.app.data.repo.KidRepository
+import com.kochvaia.app.data.SessionStore
 import com.kochvaia.app.data.repo.StarRepository
 import com.kochvaia.app.ui.common.StarBurstOverlay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +55,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class KidSiblingViewModel @Inject constructor(
+    private val sessionStore: SessionStore,
     private val kidsRepo: KidRepository,
     private val stars: StarRepository,
     private val errors: ApiErrorAdapter,
@@ -56,6 +65,8 @@ class KidSiblingViewModel @Inject constructor(
         val error: String? = null,
         val familyTz: String = "UTC",
         val sibling: KidDto? = null,
+        val selfKidId: String? = null,
+        val familyOthers: List<FamilyMember> = emptyList(),
         val weekAnchor: LocalDate = LocalDate.now(),
         val days: List<DayDto> = emptyList(),
         val summary: SummaryResponse? = null,
@@ -66,6 +77,7 @@ class KidSiblingViewModel @Inject constructor(
     val state: StateFlow<State> = _state.asStateFlow()
 
     fun load(kidId: String) {
+        val selfKidId = sessionStore.load()?.kidId
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             runCatching {
@@ -87,10 +99,22 @@ class KidSiblingViewModel @Inject constructor(
                     val summaryDef = async { stars.summary(kidId) }
                     // /seen is best-effort: failure means we just skip animations.
                     val seenDef = async { runCatching { stars.seen(kidId) }.getOrNull() }
+                    // Family row shows everyone except the currently-viewed kid
+                    // (which is rendered as the big avatar at the top).
+                    val familyOthersDef = list.filter { it.id != kidId }.map { other ->
+                        async {
+                            FamilyMember(
+                                other,
+                                runCatching { stars.summary(other.id).availableStars }.getOrNull(),
+                            )
+                        }
+                    }
                     State(
                         loading = false,
                         familyTz = tz,
                         sibling = sib,
+                        selfKidId = selfKidId,
+                        familyOthers = familyOthersDef.awaitAll(),
                         weekAnchor = anchor,
                         days = daysDef.await(),
                         summary = summaryDef.await(),
@@ -123,6 +147,8 @@ class KidSiblingViewModel @Inject constructor(
 fun KidSiblingScreen(
     kidId: String,
     onBack: () -> Unit,
+    onOpenOwnHome: () -> Unit,
+    onOpenSibling: (String) -> Unit,
     viewModel: KidSiblingViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(kidId) { viewModel.load(kidId) }
@@ -165,6 +191,30 @@ fun KidSiblingScreen(
                         onPrevWeek = { viewModel.shiftWeek(kidId, -7) },
                         onNextWeek = { viewModel.shiftWeek(kidId, 7) },
                     )
+                    if (state.familyOthers.isNotEmpty()) {
+                        Spacer(Modifier.height(32.dp))
+                        Text(
+                            "Family",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            items(state.familyOthers, key = { it.kid.id }) { row ->
+                                SiblingChip(
+                                    kid = row.kid,
+                                    availableStars = row.availableStars,
+                                    onClick = {
+                                        if (row.kid.id == state.selfKidId) onOpenOwnHome()
+                                        else onOpenSibling(row.kid.id)
+                                    },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(48.dp))
+                    }
                 }
             }
             if (state.newStars.isNotEmpty()) {
