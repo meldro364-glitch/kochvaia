@@ -20,7 +20,18 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:isGame="false"
         android:theme="@style/Theme.Kochvaia">
+
+        <!-- Tells Fire OS this app is safe to surface in the Amazon Kids
+             profile picker. Without it, sideloaded apps are filtered out
+             of the "Add Content → Apps" list on Fire HD Kids tablets. -->
+        <meta-data
+            android:name="amazon.support.freetime"
+            android:value="true" />
+        <meta-data
+            android:name="amazon.kindle.kids"
+            android:value="true" />
 
         <activity
             android:name=".MainActivity"

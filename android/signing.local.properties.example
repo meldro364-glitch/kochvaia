@@ -1,0 +1,8 @@
+# Copy to signing.local.properties (gitignored) for release builds.
+# Generate the keystore with:
+#   keytool -genkeypair -alias <alias> -keyalg RSA -keysize 2048 -validity 10000 \
+#     -keystore keystore/your-release.jks
+storeFile=keystore/your-release.jks
+storePassword=CHANGE_ME
+keyAlias=your-alias
+keyPassword=CHANGE_ME

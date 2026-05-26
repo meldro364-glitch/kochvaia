@@ -17,6 +17,8 @@ captures/
 *.jks
 google-services.json
 android/app/app.local.properties
+android/signing.local.properties
+android/keystore/
 
 # OS
 .DS_Store

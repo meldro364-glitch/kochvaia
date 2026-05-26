@@ -17,6 +17,14 @@ val localProps = Properties().apply {
 fun localOrEnv(key: String, default: String): String =
     localProps.getProperty(key) ?: System.getenv(key) ?: default
 
+// signing.local.properties (gitignored) holds the release keystore credentials.
+// If absent, the release build falls back to the debug signing config so it
+// still produces an APK — but Amazon LAT will reject debug-signed uploads.
+val signingProps = Properties().apply {
+    val f = rootProject.file("signing.local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.kochvaia.app"
     compileSdk = 35
@@ -43,13 +51,33 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = signingProps.getProperty("storeFile")
+            if (storeFilePath != null) {
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // Keep minify off for the first LAT submission to avoid surprise
+            // ProGuard issues with Hilt / Moshi / ML Kit. Re-enable once
+            // we've verified a release build runs cleanly.
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (signingProps.getProperty("storeFile") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
