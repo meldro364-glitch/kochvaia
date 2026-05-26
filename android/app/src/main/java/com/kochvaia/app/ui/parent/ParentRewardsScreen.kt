@@ -53,20 +53,24 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kochvaia.app.data.cache.ItemsCache
 import com.kochvaia.app.data.remote.ApiErrorAdapter
 import com.kochvaia.app.data.remote.ItemDto
 import com.kochvaia.app.data.repo.ItemRepository
 import com.kochvaia.app.ui.theme.StarAmber
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class ParentRewardsViewModel @Inject constructor(
-    private val items: ItemRepository,
+    private val itemsRepo: ItemRepository,
+    private val itemsCache: ItemsCache,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
     sealed interface UiState {
@@ -75,39 +79,65 @@ class ParentRewardsViewModel @Inject constructor(
         data class Error(val message: String) : UiState
     }
 
-    private val _state = MutableStateFlow<UiState>(UiState.Loading)
-    val state: StateFlow<UiState> = _state.asStateFlow()
+    private val _errorOverride = MutableStateFlow<String?>(null)
+    val state: StateFlow<UiState> = combine(itemsCache.flow, _errorOverride) { items, err ->
+        when {
+            items == null && err != null -> UiState.Error(err)
+            items == null -> UiState.Loading
+            else -> UiState.Ready(items)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun refresh() {
         viewModelScope.launch {
-            _state.value = UiState.Loading
-            runCatching { items.list() }
-                .onSuccess { _state.value = UiState.Ready(it) }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            itemsCache.refresh()
+                .onSuccess { _errorOverride.value = null }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun add(name: String, costStars: Int, emoji: String, onDone: () -> Unit) {
         viewModelScope.launch {
-            runCatching { items.add(name, costStars, emoji) }
-                .onSuccess { refresh(); onDone() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { itemsRepo.add(name, costStars, emoji) }
+                .onSuccess { newItem ->
+                    itemsCache.flow.value?.let { itemsCache.put(it + newItem) }
+                    refresh()
+                    onDone()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun edit(id: String, name: String, costStars: Int, emoji: String, onDone: () -> Unit) {
         viewModelScope.launch {
-            runCatching { items.edit(id, name, costStars, emoji) }
-                .onSuccess { refresh(); onDone() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { itemsRepo.edit(id, name, costStars, emoji) }
+                .onSuccess {
+                    // Optimistic update — refresh confirms with server values.
+                    itemsCache.flow.value?.let { list ->
+                        itemsCache.put(
+                            list.map {
+                                if (it.id == id) it.copy(name = name, costStars = costStars, emoji = emoji)
+                                else it
+                            },
+                        )
+                    }
+                    refresh()
+                    onDone()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun delete(id: String) {
         viewModelScope.launch {
-            runCatching { items.delete(id) }
-                .onSuccess { refresh() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { itemsRepo.delete(id) }
+                .onSuccess {
+                    itemsCache.flow.value?.let { list ->
+                        itemsCache.put(list.filterNot { it.id == id })
+                    }
+                    refresh()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 }

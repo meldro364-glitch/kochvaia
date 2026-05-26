@@ -30,6 +30,9 @@ interface ApiService {
     @GET("me")
     suspend fun me(): MeResponse
 
+    @GET("dashboard")
+    suspend fun dashboard(): DashboardResponse
+
     @GET("kids")
     suspend fun listKids(): KidsListResponse
 

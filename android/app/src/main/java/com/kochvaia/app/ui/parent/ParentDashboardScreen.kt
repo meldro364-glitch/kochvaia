@@ -53,19 +53,22 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kochvaia.app.data.cache.DashboardLoader
+import com.kochvaia.app.data.cache.KidsCache
+import com.kochvaia.app.data.cache.SummariesCache
 import com.kochvaia.app.data.remote.ApiErrorAdapter
 import com.kochvaia.app.data.remote.KidDto
 import com.kochvaia.app.data.repo.AuthRepository
 import com.kochvaia.app.data.repo.KidRepository
-import com.kochvaia.app.data.repo.StarRepository
 import com.kochvaia.app.ui.common.KidAvatar
 import com.kochvaia.app.ui.common.toComposeColor
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -73,9 +76,11 @@ data class KidRow(val kid: KidDto, val availableStars: Int)
 
 @HiltViewModel
 class ParentDashboardViewModel @Inject constructor(
-    private val kids: KidRepository,
-    private val stars: StarRepository,
+    private val kidsRepo: KidRepository,
     private val auth: AuthRepository,
+    private val dashboard: DashboardLoader,
+    private val kidsCache: KidsCache,
+    private val summariesCache: SummariesCache,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
     sealed interface UiState {
@@ -84,44 +89,75 @@ class ParentDashboardViewModel @Inject constructor(
         data class Error(val message: String) : UiState
     }
 
-    private val _state = MutableStateFlow<UiState>(UiState.Loading)
-    val state: StateFlow<UiState> = _state.asStateFlow()
+    /**
+     * Renders from the cached kids list + per-kid summaries immediately —
+     * the screen never blocks on the network when there's a snapshot from
+     * a previous session. `refresh()` runs a /dashboard fetch in the
+     * background; on success the flow re-emits with fresh data and the UI
+     * silently updates. On failure we keep the cached rows visible.
+     */
+    private val _errorOverride = MutableStateFlow<String?>(null)
+    val state: StateFlow<UiState> = combine(
+        kidsCache.flow,
+        summariesCache.flow,
+        _errorOverride,
+    ) { kids, summaries, err ->
+        when {
+            kids == null && err != null -> UiState.Error(err)
+            kids == null -> UiState.Loading
+            else -> UiState.Ready(
+                kids.map { k ->
+                    KidRow(k, summaries[k.id]?.availableStars ?: 0)
+                },
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun refresh() {
         viewModelScope.launch {
-            _state.value = UiState.Loading
-            runCatching {
-                val list = kids.list()
-                val rows = list.map { kid ->
-                    async { KidRow(kid, runCatching { stars.summary(kid.id).availableStars }.getOrDefault(0)) }
-                }.awaitAll()
-                rows
-            }.onSuccess { _state.value = UiState.Ready(it) }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            dashboard.refresh()
+                .onSuccess { _errorOverride.value = null }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun addKid(name: String, emoji: String, color: String, onDone: () -> Unit) {
         viewModelScope.launch {
-            runCatching { kids.add(name, emoji, color) }
-                .onSuccess { refresh(); onDone() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { kidsRepo.add(name, emoji, color) }
+                .onSuccess { newKid ->
+                    // Optimistically append; refresh confirms.
+                    kidsCache.flow.value?.let { kidsCache.put(it + newKid) }
+                    refresh()
+                    onDone()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun rename(kidId: String, newName: String) {
         viewModelScope.launch {
-            runCatching { kids.rename(kidId, newName) }
-                .onSuccess { refresh() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { kidsRepo.rename(kidId, newName) }
+                .onSuccess {
+                    // Optimistic rename in cache.
+                    kidsCache.flow.value?.let { list ->
+                        kidsCache.put(list.map { if (it.id == kidId) it.copy(displayName = newName) else it })
+                    }
+                    refresh()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 
     fun delete(kidId: String) {
         viewModelScope.launch {
-            runCatching { kids.delete(kidId) }
-                .onSuccess { refresh() }
-                .onFailure { _state.value = UiState.Error(errors.message(it)) }
+            runCatching { kidsRepo.delete(kidId) }
+                .onSuccess {
+                    kidsCache.flow.value?.let { list ->
+                        kidsCache.put(list.filterNot { it.id == kidId })
+                    }
+                    refresh()
+                }
+                .onFailure { _errorOverride.value = errors.message(it) }
         }
     }
 

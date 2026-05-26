@@ -9,6 +9,7 @@ import { starsRoutes } from "./routes/stars.ts";
 import { seenRoutes } from "./routes/seen.ts";
 import { itemsRoutes } from "./routes/items.ts";
 import { policyRoutes } from "./routes/policy.ts";
+import { dashboardRoutes } from "./routes/dashboard.ts";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -31,6 +32,7 @@ app.route("/", starsRoutes);
 app.route("/", seenRoutes);
 app.route("/", itemsRoutes);
 app.route("/", policyRoutes);
+app.route("/", dashboardRoutes);
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {

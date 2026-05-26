@@ -3,6 +3,12 @@ package com.kochvaia.app.data.repo
 import com.kochvaia.app.data.Role
 import com.kochvaia.app.data.Session
 import com.kochvaia.app.data.SessionStore
+import com.kochvaia.app.data.cache.DaysCache
+import com.kochvaia.app.data.cache.ItemsCache
+import com.kochvaia.app.data.cache.KidsCache
+import com.kochvaia.app.data.cache.MeCache
+import com.kochvaia.app.data.cache.SnapshotStore
+import com.kochvaia.app.data.cache.SummariesCache
 import com.kochvaia.app.data.remote.ApiService
 import com.kochvaia.app.data.remote.EmailRequestBody
 import com.kochvaia.app.data.remote.EmailVerifyBody
@@ -20,7 +26,26 @@ class AuthRepository @Inject constructor(
     private val api: ApiService,
     private val sessionStore: SessionStore,
     private val reminders: ReminderScheduler,
+    private val snapshots: SnapshotStore,
+    private val meCache: MeCache,
+    private val kidsCache: KidsCache,
+    private val itemsCache: ItemsCache,
+    private val summariesCache: SummariesCache,
+    private val daysCache: DaysCache,
 ) {
+    /**
+     * Wipe every per-account cache. Called on logout and before saving a
+     * new session — guarantees a different family/account never sees
+     * stale data from a prior login.
+     */
+    private fun clearCaches() {
+        meCache.clear()
+        kidsCache.clear()
+        itemsCache.clear()
+        summariesCache.clear()
+        daysCache.clear()
+        snapshots.clear()
+    }
     fun currentSession(): Session? = sessionStore.load()
 
     suspend fun signInWithGoogle(
@@ -44,6 +69,7 @@ class AuthRepository @Inject constructor(
             parentId = res.parentId,
             kidId = res.kidId,
         )
+        clearCaches()
         sessionStore.save(session)
         if (session.role == Role.parent) reminders.enableDailyReminder()
         return session
@@ -73,6 +99,7 @@ class AuthRepository @Inject constructor(
             parentId = res.parentId,
             kidId = res.kidId,
         )
+        clearCaches()
         sessionStore.save(session)
         if (session.role == Role.parent) reminders.enableDailyReminder()
         return session
@@ -90,6 +117,7 @@ class AuthRepository @Inject constructor(
             parentId = null,
             kidId = res.kidId,
         )
+        clearCaches()
         sessionStore.save(session)
         return session
     }
@@ -110,6 +138,7 @@ class AuthRepository @Inject constructor(
     suspend fun logout() {
         runCatching { api.logout() } // best-effort revoke
         sessionStore.clear()
+        clearCaches()
         reminders.disableDailyReminder()
     }
 }

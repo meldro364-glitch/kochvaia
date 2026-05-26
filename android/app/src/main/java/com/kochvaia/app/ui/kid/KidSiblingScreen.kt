@@ -32,19 +32,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kochvaia.app.data.cache.DashboardLoader
+import com.kochvaia.app.data.cache.DaysCache
+import com.kochvaia.app.data.cache.KidsCache
+import com.kochvaia.app.data.cache.MeCache
+import com.kochvaia.app.data.cache.SummariesCache
 import com.kochvaia.app.data.remote.ApiErrorAdapter
 import com.kochvaia.app.data.remote.DayDto
 import com.kochvaia.app.data.remote.KidDto
 import com.kochvaia.app.data.remote.SeenStar
 import com.kochvaia.app.data.remote.SummaryResponse
-import com.kochvaia.app.data.repo.KidRepository
 import com.kochvaia.app.data.SessionStore
 import com.kochvaia.app.data.repo.StarRepository
 import com.kochvaia.app.ui.common.StarBurstOverlay
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,8 +57,12 @@ import javax.inject.Inject
 @HiltViewModel
 class KidSiblingViewModel @Inject constructor(
     private val sessionStore: SessionStore,
-    private val kidsRepo: KidRepository,
     private val stars: StarRepository,
+    private val dashboard: DashboardLoader,
+    private val meCache: MeCache,
+    private val kidsCache: KidsCache,
+    private val summariesCache: SummariesCache,
+    private val daysCache: DaysCache,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
     data class State(
@@ -76,64 +81,63 @@ class KidSiblingViewModel @Inject constructor(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /**
+     * Same SWR pattern as KidHomeViewModel — cached state paints first,
+     * /dashboard refresh + sibling's week-of-days run in background.
+     */
     fun load(kidId: String) {
         val selfKidId = sessionStore.load()?.kidId
+        applyFromCaches(kidId, selfKidId)
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = null)
-            runCatching {
-                coroutineScope {
-                    val meDeferred = async { kidsRepo.me() }
-                    val listDeferred = async { kidsRepo.list() }
-                    val me = meDeferred.await()
-                    val list = listDeferred.await()
-                    val sib = list.firstOrNull { it.id == kidId }
-                    if (sib == null) {
-                        _state.value = State(loading = false, error = "Sibling not found")
-                        return@coroutineScope null
-                    }
-                    val tz = me.family.tz
-                    val anchor = LocalDate.now(ZoneId.of(tz))
-                    val from = anchor.minusDays(6).toString()
-                    val to = anchor.toString()
-                    val daysDef = async { stars.days(kidId, from, to).days }
-                    val summaryDef = async { stars.summary(kidId) }
-                    // /seen is best-effort: failure means we just skip animations.
-                    val seenDef = async { runCatching { stars.seen(kidId) }.getOrNull() }
-                    // Family row shows everyone except the currently-viewed kid
-                    // (which is rendered as the big avatar at the top).
-                    val familyOthersDef = list.filter { it.id != kidId }.map { other ->
-                        async {
-                            FamilyMember(
-                                other,
-                                runCatching { stars.summary(other.id).availableStars }.getOrNull(),
-                            )
-                        }
-                    }
-                    State(
-                        loading = false,
-                        familyTz = tz,
-                        sibling = sib,
-                        selfKidId = selfKidId,
-                        familyOthers = familyOthersDef.awaitAll(),
-                        weekAnchor = anchor,
-                        days = daysDef.await(),
-                        summary = summaryDef.await(),
-                        newStars = seenDef.await()?.newStars.orEmpty(),
-                    )
+            val dashResult = dashboard.refresh()
+            applyFromCaches(kidId, selfKidId)
+            dashResult.onFailure {
+                if (_state.value.sibling == null) {
+                    _state.value = _state.value.copy(loading = false, error = errors.message(it))
                 }
-            }.onSuccess { if (it != null) _state.value = it }
-                .onFailure { _state.value = State(loading = false, error = errors.message(it)) }
+            }
+            val anchor = _state.value.weekAnchor
+            daysCache.refresh(kidId, anchor.minusDays(6).toString(), anchor.toString())
+                .onSuccess { _state.value = _state.value.copy(days = it.days) }
+            runCatching { stars.seen(kidId) }
+                .onSuccess { s -> _state.value = _state.value.copy(newStars = s.newStars) }
         }
+    }
+
+    private fun applyFromCaches(kidId: String, selfKidId: String?) {
+        val me = meCache.flow.value
+        val kids = kidsCache.flow.value
+        val summaries = summariesCache.flow.value
+        val tz = me?.family?.tz ?: _state.value.familyTz
+        val sib = kids?.firstOrNull { it.id == kidId }
+        val anchor = if (tz != "UTC" && me != null) LocalDate.now(ZoneId.of(tz)) else _state.value.weekAnchor
+        val cachedDays = daysCache.get(kidId, anchor.minusDays(6).toString(), anchor.toString())?.days
+        _state.value = _state.value.copy(
+            loading = sib == null && kids == null,
+            familyTz = tz,
+            sibling = sib,
+            selfKidId = selfKidId,
+            familyOthers = kids.orEmpty()
+                .filter { it.id != kidId }
+                .map { FamilyMember(it, summaries[it.id]?.availableStars) },
+            weekAnchor = anchor,
+            days = cachedDays ?: _state.value.days,
+            summary = summaries[kidId] ?: _state.value.summary,
+            error = if (sib != null) null else _state.value.error,
+        )
     }
 
     fun shiftWeek(kidId: String, deltaDays: Long) {
         val cur = _state.value
         val today = LocalDate.now(ZoneId.of(cur.familyTz))
         val newAnchor = minOf(cur.weekAnchor.plusDays(deltaDays), today)
+        val from = newAnchor.minusDays(6).toString()
+        val to = newAnchor.toString()
+        val cached = daysCache.get(kidId, from, to)?.days
+        _state.value = cur.copy(weekAnchor = newAnchor, days = cached ?: emptyList())
         viewModelScope.launch {
-            runCatching {
-                stars.days(kidId, newAnchor.minusDays(6).toString(), newAnchor.toString()).days
-            }.onSuccess { _state.value = cur.copy(weekAnchor = newAnchor, days = it) }
+            daysCache.refresh(kidId, from, to)
+                .onSuccess { _state.value = _state.value.copy(days = it.days) }
         }
     }
 

@@ -155,6 +155,27 @@ data class SummaryResponse(
     val totalUsed: Int,
 )
 
+// Server returns summaries keyed by kidId in the /dashboard payload, so the
+// inner shape doesn't repeat kidId. We expand into the full SummaryResponse
+// on the client side when seeding the summary cache.
+@JsonClass(generateAdapter = true)
+data class SummaryShort(
+    val availableStars: Int,
+    val totalEarned: Int,
+    val totalUsed: Int,
+)
+
+@JsonClass(generateAdapter = true)
+data class DashboardResponse(
+    val role: String,
+    val family: FamilyDto,
+    val parent: ParentDto? = null,
+    val kid: KidDto? = null,
+    val kids: List<KidDto>,
+    val items: List<ItemDto>,
+    val summaries: Map<String, SummaryShort>,
+)
+
 @JsonClass(generateAdapter = true)
 data class SeenStar(val id: String, val date: String, val awardedAt: Long)
 
