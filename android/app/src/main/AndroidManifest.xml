@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Camera is needed for kid-pairing QR scan and co-parent invite scan. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Android 13+ requires runtime permission to post notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Haptic confirmation when the parent taps a notification action. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".KochvaiaApp"
@@ -35,5 +40,33 @@
                 <data android:scheme="kochvaia" android:host="join" />
             </intent-filter>
         </activity>
+
+        <!-- Inline "⭐ <Name>" action button on the daily reminder routes here. -->
+        <receiver
+            android:name=".notify.StarActionReceiver"
+            android:exported="false" />
+
+        <!-- Debug-only: adb broadcast triggers an instant ReminderWorker run.
+             Exported so adb can reach it; gated by BuildConfig.DEBUG inside. -->
+        <receiver
+            android:name=".notify.DebugReminderReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.kochvaia.app.debug.TRIGGER_REMINDER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- We provide a Configuration via KochvaiaApp (HiltWorkerFactory),
+             so disable the default startup-driven WorkManager initializer. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 </manifest>

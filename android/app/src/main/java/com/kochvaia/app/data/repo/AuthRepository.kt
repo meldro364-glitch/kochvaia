@@ -9,6 +9,7 @@ import com.kochvaia.app.data.remote.QrCreateRequest
 import com.kochvaia.app.data.remote.QrCreateResponse
 import com.kochvaia.app.data.remote.QrRedeemRequest
 import com.kochvaia.app.data.remote.QrRedeemResponse
+import com.kochvaia.app.notify.ReminderScheduler
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,6 +17,7 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val api: ApiService,
     private val sessionStore: SessionStore,
+    private val reminders: ReminderScheduler,
 ) {
     fun currentSession(): Session? = sessionStore.load()
 
@@ -41,6 +43,7 @@ class AuthRepository @Inject constructor(
             kidId = res.kidId,
         )
         sessionStore.save(session)
+        if (session.role == Role.parent) reminders.enableDailyReminder()
         return session
     }
 
@@ -76,5 +79,6 @@ class AuthRepository @Inject constructor(
     suspend fun logout() {
         runCatching { api.logout() } // best-effort revoke
         sessionStore.clear()
+        reminders.disableDailyReminder()
     }
 }

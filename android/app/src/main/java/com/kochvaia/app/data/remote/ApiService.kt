@@ -57,4 +57,16 @@ interface ApiService {
 
     @POST("kids/{id}/seen")
     suspend fun seen(@Path("id") id: String): SeenResponse
+
+    @GET("items")
+    suspend fun listItems(): ItemsListResponse
+
+    @POST("items")
+    suspend fun createItem(@Body body: CreateItemRequest): ItemDto
+
+    @PATCH("items/{id}")
+    suspend fun patchItem(@Path("id") id: String, @Body body: PatchItemRequest)
+
+    @DELETE("items/{id}")
+    suspend fun deleteItem(@Path("id") id: String)
 }

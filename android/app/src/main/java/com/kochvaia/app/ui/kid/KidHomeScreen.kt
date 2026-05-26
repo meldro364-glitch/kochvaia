@@ -14,16 +14,22 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -31,12 +37,16 @@ import androidx.lifecycle.viewModelScope
 import com.kochvaia.app.data.SessionStore
 import com.kochvaia.app.data.remote.ApiErrorAdapter
 import com.kochvaia.app.data.remote.DayDto
+import com.kochvaia.app.data.remote.ItemDto
 import com.kochvaia.app.data.remote.KidDto
 import com.kochvaia.app.data.remote.SeenStar
 import com.kochvaia.app.data.remote.SummaryResponse
+import com.kochvaia.app.data.repo.AuthRepository
+import com.kochvaia.app.data.repo.ItemRepository
 import com.kochvaia.app.data.repo.KidRepository
 import com.kochvaia.app.data.repo.StarRepository
 import com.kochvaia.app.ui.common.StarBurstOverlay
+import com.kochvaia.app.ui.common.detectLongHold
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -54,6 +64,8 @@ class KidHomeViewModel @Inject constructor(
     private val sessionStore: SessionStore,
     private val kidsRepo: KidRepository,
     private val stars: StarRepository,
+    private val items: ItemRepository,
+    private val auth: AuthRepository,
     private val errors: ApiErrorAdapter,
 ) : ViewModel() {
     data class State(
@@ -66,6 +78,7 @@ class KidHomeViewModel @Inject constructor(
         val days: List<DayDto> = emptyList(),
         val summary: SummaryResponse? = null,
         val newStars: List<SeenStar> = emptyList(),
+        val rewards: List<ItemDto> = emptyList(),
     )
 
     private val _state = MutableStateFlow(State())
@@ -99,6 +112,9 @@ class KidHomeViewModel @Inject constructor(
                     val summaryDef = async { stars.summary(kidId) }
                     // /seen is best-effort: failure means we just skip animations.
                     val seenDef = async { runCatching { stars.seen(kidId) }.getOrNull() }
+                    // Items are best-effort too — an item failure shouldn't
+                    // hide the rest of the home screen.
+                    val itemsDef = async { runCatching { items.list() }.getOrDefault(emptyList()) }
                     val sibSummariesDef = list.filter { it.id != kidId }.map { sib ->
                         async {
                             FamilyMember(
@@ -116,6 +132,7 @@ class KidHomeViewModel @Inject constructor(
                         days = daysDef.await(),
                         summary = summaryDef.await(),
                         newStars = seenDef.await()?.newStars.orEmpty(),
+                        rewards = itemsDef.await(),
                     )
                 }
             }.onSuccess { if (it != null) _state.value = it }
@@ -138,15 +155,24 @@ class KidHomeViewModel @Inject constructor(
     fun consumeAnimations() {
         _state.value = _state.value.copy(newStars = emptyList())
     }
+
+    fun signOut(onDone: () -> Unit) {
+        viewModelScope.launch {
+            auth.logout()
+            onDone()
+        }
+    }
 }
 
 @Composable
 fun KidHomeScreen(
     onOpenSibling: (String) -> Unit,
+    onSignedOut: () -> Unit,
     viewModel: KidHomeViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) { viewModel.load() }
     val state by viewModel.state.collectAsState()
+    var showSignOutDialog by remember { mutableStateOf(false) }
 
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -166,6 +192,9 @@ fun KidHomeScreen(
                             KidProfileHeader(
                                 kid = state.self,
                                 summary = state.summary,
+                                avatarModifier = Modifier.pointerInput(Unit) {
+                                    detectLongHold(holdMs = 1500L) { showSignOutDialog = true }
+                                },
                                 avatarSize = if (isWide) 72.dp else 96.dp,
                                 starsStyle = if (isWide) MaterialTheme.typography.displayMedium
                                 else MaterialTheme.typography.displayLarge,
@@ -196,6 +225,15 @@ fun KidHomeScreen(
                                     }
                                 }
                             }
+                            if (state.rewards.isNotEmpty()) {
+                                Spacer(Modifier.height(24.dp))
+                                Text("Rewards", style = MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.height(8.dp))
+                                RewardsList(
+                                    rewards = state.rewards,
+                                    availableStars = state.summary?.availableStars ?: 0,
+                                )
+                            }
                         },
                     )
                 }
@@ -207,5 +245,22 @@ fun KidHomeScreen(
                 )
             }
         }
+    }
+
+    if (showSignOutDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignOutDialog = false },
+            title = { Text("Sign out of this device?") },
+            text = { Text("You'll need a new QR code from a parent to sign back in.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignOutDialog = false
+                    viewModel.signOut(onSignedOut)
+                }) {
+                    Text("Sign out", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showSignOutDialog = false }) { Text("Cancel") } },
+        )
     }
 }

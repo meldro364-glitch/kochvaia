@@ -16,6 +16,8 @@ securityCrypto = "1.1.0-beta01"
 credentials = "1.5.0-rc01"
 googleId = "1.1.1"
 camerax = "1.4.1"
+work = "2.10.0"
+hiltWork = "1.2.0"
 mlkitBarcode = "17.3.0"
 zxing = "3.5.3"
 coil = "2.7.0"
@@ -38,6 +40,9 @@ androidx-compose-material-icons-extended = { module = "androidx.compose.material
 
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavCompose" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hiltWork" }
+androidx-hilt-compiler = { module = "androidx.hilt:hilt-compiler", version.ref = "hiltWork" }
 
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }

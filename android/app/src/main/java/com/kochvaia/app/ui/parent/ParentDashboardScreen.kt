@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.AlertDialog
@@ -138,6 +139,7 @@ fun ParentDashboardScreen(
     onOpenKid: (String) -> Unit,
     onShareQr: (String) -> Unit,
     onShareCoParent: () -> Unit,
+    onOpenRewards: () -> Unit,
     onSignOut: () -> Unit,
     viewModel: ParentDashboardViewModel = hiltViewModel(),
 ) {
@@ -146,12 +148,16 @@ fun ParentDashboardScreen(
     var menuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
+    RequestNotificationPermissionOnce()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Kids") },
                 actions = {
+                    IconButton(onClick = onOpenRewards) {
+                        Icon(Icons.Filled.CardGiftcard, contentDescription = "Rewards")
+                    }
                     IconButton(onClick = onShareCoParent) {
                         Icon(Icons.Filled.QrCode, contentDescription = "Invite co-parent")
                     }
@@ -399,4 +405,25 @@ private fun AddKidDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/**
+ * Asks the user for POST_NOTIFICATIONS once per dashboard mount. Android 12
+ * and below grant the permission implicitly so this composable is a no-op
+ * there. A denial is silent — we just won't post reminders.
+ */
+@Composable
+private fun RequestNotificationPermissionOnce() {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { /* result ignored — silent denial is fine */ }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
 }

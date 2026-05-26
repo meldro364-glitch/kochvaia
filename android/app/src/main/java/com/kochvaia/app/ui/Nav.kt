@@ -14,6 +14,7 @@ object Routes {
     const val PARENT_SHARE_QR = "parent_share_qr?kidId={kidId}"
     fun parentShareQr(kidId: String? = null): String =
         if (kidId == null) "parent_share_qr?kidId=" else "parent_share_qr?kidId=$kidId"
+    const val PARENT_REWARDS = "parent_rewards"
 
     const val KID_PAIRING = "kid_pairing"
     const val KID_HOME = "kid_home"

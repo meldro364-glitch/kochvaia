@@ -160,4 +160,30 @@ data class SeenResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class ItemDto(
+    val id: String,
+    val name: String,
+    val costStars: Int,
+    val emoji: String,
+    val createdAt: Long? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ItemsListResponse(val items: List<ItemDto>)
+
+@JsonClass(generateAdapter = true)
+data class CreateItemRequest(
+    val name: String,
+    val costStars: Int,
+    val emoji: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class PatchItemRequest(
+    val name: String? = null,
+    val costStars: Int? = null,
+    val emoji: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
 data class ErrorBody(val error: String)

@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { kidsRoutes } from "./routes/kids.ts";
 import { starsRoutes } from "./routes/stars.ts";
 import { seenRoutes } from "./routes/seen.ts";
+import { itemsRoutes } from "./routes/items.ts";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -27,6 +28,7 @@ app.route("/auth", authRoutes);
 app.route("/", kidsRoutes);
 app.route("/", starsRoutes);
 app.route("/", seenRoutes);
+app.route("/", itemsRoutes);
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {

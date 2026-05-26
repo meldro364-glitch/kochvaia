@@ -98,6 +98,7 @@ fun KidProfileHeader(
     kid: KidDto?,
     summary: SummaryResponse?,
     modifier: Modifier = Modifier,
+    avatarModifier: Modifier = Modifier,
     avatarSize: Dp = 96.dp,
     nameStyle: TextStyle = MaterialTheme.typography.headlineSmall,
     starsStyle: TextStyle = MaterialTheme.typography.displayLarge,
@@ -107,6 +108,7 @@ fun KidProfileHeader(
             KidAvatar(
                 emoji = kid.avatarEmoji,
                 colorHex = kid.avatarColor,
+                modifier = avatarModifier,
                 size = avatarSize,
                 textStyle = MaterialTheme.typography.displayMedium,
             )

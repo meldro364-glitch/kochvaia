@@ -25,6 +25,7 @@ import com.kochvaia.app.ui.kid.KidSiblingScreen
 import com.kochvaia.app.ui.onboarding.ModePickerScreen
 import com.kochvaia.app.ui.parent.ParentDashboardScreen
 import com.kochvaia.app.ui.parent.ParentKidDetailScreen
+import com.kochvaia.app.ui.parent.ParentRewardsScreen
 import com.kochvaia.app.ui.parent.ParentShareQrScreen
 import com.kochvaia.app.ui.parent.ParentSignInScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -105,6 +106,7 @@ private fun NavGraphBuilder.parentGraph(
             onOpenKid = { id -> nav.navigate(Routes.parentKidDetail(id)) },
             onShareQr = { id -> nav.navigate(Routes.parentShareQr(id)) },
             onShareCoParent = { nav.navigate(Routes.parentShareQr(null)) },
+            onOpenRewards = { nav.navigate(Routes.PARENT_REWARDS) },
             onSignOut = {
                 onSessionChanged()
                 nav.navigate(Routes.MODE_PICKER) {
@@ -112,6 +114,9 @@ private fun NavGraphBuilder.parentGraph(
                 }
             },
         )
+    }
+    composable(Routes.PARENT_REWARDS) {
+        ParentRewardsScreen(onBack = { nav.popBackStack() })
     }
     composable(
         route = Routes.PARENT_KID_DETAIL,
@@ -150,6 +155,12 @@ private fun NavGraphBuilder.kidGraph(
     composable(Routes.KID_HOME) {
         KidHomeScreen(
             onOpenSibling = { id -> nav.navigate(Routes.kidSibling(id)) },
+            onSignedOut = {
+                onSessionChanged()
+                nav.navigate(Routes.MODE_PICKER) {
+                    popUpTo(0) { inclusive = true }
+                }
+            },
         )
     }
     composable(
