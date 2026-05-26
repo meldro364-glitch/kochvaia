@@ -7,6 +7,20 @@ import com.squareup.moshi.JsonClass
 // compile errors here.
 
 @JsonClass(generateAdapter = true)
+data class EmailRequestBody(val email: String)
+
+@JsonClass(generateAdapter = true)
+data class EmailVerifyBody(
+    val email: String,
+    val code: String,
+    val familyTz: String? = null,
+    val displayName: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class OkResponse(val ok: Boolean)
+
+@JsonClass(generateAdapter = true)
 data class GoogleAuthRequest(
     val idToken: String,
     val inviteCode: String? = null,

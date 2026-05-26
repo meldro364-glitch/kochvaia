@@ -2,6 +2,10 @@ export interface Env {
   DB: D1Database;
   GOOGLE_OAUTH_CLIENT_ID: string;
   ENVIRONMENT: string;
+  // Email magic-code login (Resend). Optional in tests; required in prod.
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
+  MAGIC_LINK_BASE?: string;
 }
 
 export type Role = "parent" | "kid";

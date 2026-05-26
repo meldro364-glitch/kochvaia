@@ -12,6 +12,12 @@ interface ApiService {
     @POST("auth/google")
     suspend fun signInWithGoogle(@Body body: GoogleAuthRequest): AuthResponse
 
+    @POST("auth/email/request")
+    suspend fun requestEmailCode(@Body body: EmailRequestBody): OkResponse
+
+    @POST("auth/email/verify")
+    suspend fun verifyEmailCode(@Body body: EmailVerifyBody): AuthResponse
+
     @POST("auth/qr/create")
     suspend fun createQr(@Body body: QrCreateRequest): QrCreateResponse
 

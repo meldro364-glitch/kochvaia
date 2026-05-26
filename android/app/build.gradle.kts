@@ -33,8 +33,8 @@ android {
         applicationId = "com.kochvaia.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -42,7 +42,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"${localOrEnv("API_BASE_URL", "https://kochvaia.meldro364.workers.dev")}\"",
+            "\"${localOrEnv("API_BASE_URL", "https://api.kochvaia.uk")}\"",
         )
         buildConfigField(
             "String",

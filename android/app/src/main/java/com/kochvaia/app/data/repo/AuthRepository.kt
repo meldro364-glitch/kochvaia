@@ -4,6 +4,8 @@ import com.kochvaia.app.data.Role
 import com.kochvaia.app.data.Session
 import com.kochvaia.app.data.SessionStore
 import com.kochvaia.app.data.remote.ApiService
+import com.kochvaia.app.data.remote.EmailRequestBody
+import com.kochvaia.app.data.remote.EmailVerifyBody
 import com.kochvaia.app.data.remote.GoogleAuthRequest
 import com.kochvaia.app.data.remote.QrCreateRequest
 import com.kochvaia.app.data.remote.QrCreateResponse
@@ -31,6 +33,35 @@ class AuthRepository @Inject constructor(
             GoogleAuthRequest(
                 idToken = idToken,
                 inviteCode = inviteCode,
+                familyTz = familyTz,
+                displayName = displayName,
+            ),
+        )
+        val session = Session(
+            token = res.sessionToken,
+            role = Role.valueOf(res.role),
+            familyId = res.familyId,
+            parentId = res.parentId,
+            kidId = res.kidId,
+        )
+        sessionStore.save(session)
+        if (session.role == Role.parent) reminders.enableDailyReminder()
+        return session
+    }
+
+    suspend fun requestEmailCode(email: String) =
+        api.requestEmailCode(EmailRequestBody(email))
+
+    suspend fun signInWithEmailCode(
+        email: String,
+        code: String,
+        familyTz: String,
+        displayName: String?,
+    ): Session {
+        val res = api.verifyEmailCode(
+            EmailVerifyBody(
+                email = email,
+                code = code,
                 familyTz = familyTz,
                 displayName = displayName,
             ),

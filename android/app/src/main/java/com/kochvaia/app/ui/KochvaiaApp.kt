@@ -23,6 +23,7 @@ import com.kochvaia.app.ui.kid.KidHomeScreen
 import com.kochvaia.app.ui.kid.KidPairingScreen
 import com.kochvaia.app.ui.kid.KidSiblingScreen
 import com.kochvaia.app.ui.onboarding.ModePickerScreen
+import com.kochvaia.app.ui.parent.EmailSignInScreen
 import com.kochvaia.app.ui.parent.ParentDashboardScreen
 import com.kochvaia.app.ui.parent.ParentKidDetailScreen
 import com.kochvaia.app.ui.parent.ParentRewardsScreen
@@ -99,6 +100,18 @@ private fun NavGraphBuilder.parentGraph(
                     popUpTo(Routes.MODE_PICKER) { inclusive = true }
                 }
             },
+            onUseEmail = { nav.navigate(Routes.PARENT_EMAIL_SIGN_IN) },
+        )
+    }
+    composable(Routes.PARENT_EMAIL_SIGN_IN) {
+        EmailSignInScreen(
+            onSignedIn = {
+                onSessionChanged()
+                nav.navigate(Routes.PARENT_DASHBOARD) {
+                    popUpTo(Routes.MODE_PICKER) { inclusive = true }
+                }
+            },
+            onBack = { nav.popBackStack() },
         )
     }
     composable(Routes.PARENT_DASHBOARD) {

@@ -8,6 +8,7 @@ object Routes {
     const val MODE_PICKER = "mode_picker"
 
     const val PARENT_SIGN_IN = "parent_sign_in"
+    const val PARENT_EMAIL_SIGN_IN = "parent_email_sign_in"
     const val PARENT_DASHBOARD = "parent_dashboard"
     const val PARENT_KID_DETAIL = "parent_kid_detail/{kidId}"
     fun parentKidDetail(kidId: String) = "parent_kid_detail/$kidId"

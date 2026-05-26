@@ -3,8 +3,17 @@ import type { AppVariables, Env } from "../types.ts";
 import { verifyGoogleIdToken } from "../auth/google.ts";
 import { mintKidSession, mintParentSession } from "../auth/session.ts";
 import { consumeJoinCode, createJoinCode, peekJoinCode } from "../auth/qr.ts";
+import {
+  consumeCode,
+  findOrCreateParentByEmail,
+  generateCode,
+  isValidEmail,
+  normalizeEmail,
+  recordCode,
+  sendCodeEmail,
+} from "../auth/email.ts";
 import { newId } from "../lib/ids.ts";
-import { badRequest, forbidden, notFound } from "../lib/errors.ts";
+import { badRequest, conflict, forbidden, notFound } from "../lib/errors.ts";
 import { requireParent, requireSession } from "../middleware/auth.ts";
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -139,6 +148,76 @@ authRoutes.post("/qr/redeem", async (c) => {
     role: "kid" as const,
     kidId: consumed.kidId,
     familyId: consumed.familyId,
+  });
+});
+
+/**
+ * POST /auth/email/request
+ * Body: { email: string }
+ * Generates a 6-digit code, stores its hash (10-min TTL), and emails the
+ * code. Idempotent at the API level: requesting twice in a row simply
+ * produces a second valid code (up to the per-email cap).
+ */
+authRoutes.post("/email/request", async (c) => {
+  const body = await c.req.json<{ email?: string }>();
+  if (!body?.email) throw badRequest("missing_email");
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) throw badRequest("invalid_email");
+
+  const code = generateCode();
+  const ip = c.req.header("cf-connecting-ip") ?? null;
+  try {
+    await recordCode(c.env, { email, code, ip });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "too_many_active_codes") throw conflict("too_many_active_codes");
+    throw e;
+  }
+  try {
+    await sendCodeEmail(c.env, { to: email, code });
+  } catch (e) {
+    // The code is stored; the user can request again. Surface enough to debug.
+    const msg = e instanceof Error ? e.message : String(e);
+    throw badRequest(`send_failed:${msg.slice(0, 80)}`);
+  }
+  return c.json({ ok: true });
+});
+
+/**
+ * POST /auth/email/verify
+ * Body: { email: string, code: string, familyTz?: string, displayName?: string }
+ * On success: mints a parent session, find-or-creates the parent record.
+ */
+authRoutes.post("/email/verify", async (c) => {
+  const body = await c.req.json<{
+    email?: string;
+    code?: string;
+    familyTz?: string;
+    displayName?: string;
+  }>();
+  if (!body?.email || !body?.code) throw badRequest("missing_email_or_code");
+  const email = normalizeEmail(body.email);
+  const code = body.code.replace(/\s+/g, "");
+  if (!isValidEmail(email)) throw badRequest("invalid_email");
+  if (!/^\d{6}$/.test(code)) throw badRequest("invalid_code_format");
+
+  const ok = await consumeCode(c.env, { email, code });
+  if (!ok) throw badRequest("invalid_or_expired_code");
+
+  const displayName = body.displayName?.trim() || email.split("@")[0]!;
+  const familyTz = (body.familyTz ?? "UTC").trim() || "UTC";
+  const { parentId, familyId } = await findOrCreateParentByEmail(c.env, {
+    email,
+    familyTz,
+    displayName,
+  });
+  const session = await mintParentSession(c.env, parentId);
+  return c.json({
+    sessionToken: session.token,
+    expiresAt: session.expiresAt,
+    role: "parent" as const,
+    parentId,
+    familyId,
   });
 });
 

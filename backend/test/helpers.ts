@@ -16,12 +16,14 @@ export async function resetDb(): Promise<void> {
   // Migrations are applied via setup.ts (beforeAll).
   // Order matters: leaf tables first.
   const tables = [
+    "email_login_codes",
     "view_checkpoints",
     "join_codes",
     "deductions",
     "stars",
     "kid_sessions",
     "parent_sessions",
+    "items",
     "kids",
     "parents",
     "families",
