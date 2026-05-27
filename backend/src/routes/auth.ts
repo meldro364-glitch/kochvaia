@@ -8,6 +8,7 @@ import {
   findOrCreateParentByEmail,
   generateCode,
   isValidEmail,
+  joinFamilyByInviteEmail,
   normalizeEmail,
   recordCode,
   sendCodeEmail,
@@ -185,8 +186,13 @@ authRoutes.post("/email/request", async (c) => {
 
 /**
  * POST /auth/email/verify
- * Body: { email: string, code: string, familyTz?: string, displayName?: string }
- * On success: mints a parent session, find-or-creates the parent record.
+ * Body: { email, code, familyTz?, displayName?, inviteCode? }
+ *
+ * On success: mints a parent session.
+ *   - no inviteCode → find-or-create the parent (new family if none).
+ *   - inviteCode set → consume the join_code (must be kind=parent) and add
+ *     the email parent to that existing family. If the email is already
+ *     a parent (somewhere), they're returned as-is (idempotent join).
  */
 authRoutes.post("/email/verify", async (c) => {
   const body = await c.req.json<{
@@ -194,6 +200,7 @@ authRoutes.post("/email/verify", async (c) => {
     code?: string;
     familyTz?: string;
     displayName?: string;
+    inviteCode?: string;
   }>();
   if (!body?.email || !body?.code) throw badRequest("missing_email_or_code");
   const email = normalizeEmail(body.email);
@@ -206,11 +213,24 @@ authRoutes.post("/email/verify", async (c) => {
 
   const displayName = body.displayName?.trim() || email.split("@")[0]!;
   const familyTz = (body.familyTz ?? "UTC").trim() || "UTC";
-  const { parentId, familyId } = await findOrCreateParentByEmail(c.env, {
-    email,
-    familyTz,
-    displayName,
-  });
+
+  let parentId: string;
+  let familyId: string;
+  if (body.inviteCode) {
+    const consumed = await consumeJoinCode(c.env, body.inviteCode);
+    if (consumed.kind !== "parent") throw badRequest("invite_not_for_parent");
+    ({ parentId, familyId } = await joinFamilyByInviteEmail(c.env, {
+      email,
+      displayName,
+      familyId: consumed.familyId,
+    }));
+  } else {
+    ({ parentId, familyId } = await findOrCreateParentByEmail(c.env, {
+      email,
+      familyTz,
+      displayName,
+    }));
+  }
   const session = await mintParentSession(c.env, parentId);
   return c.json({
     sessionToken: session.token,

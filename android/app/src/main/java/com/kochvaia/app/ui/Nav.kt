@@ -7,8 +7,13 @@ package com.kochvaia.app.ui
 object Routes {
     const val MODE_PICKER = "mode_picker"
 
-    const val PARENT_SIGN_IN = "parent_sign_in"
-    const val PARENT_EMAIL_SIGN_IN = "parent_email_sign_in"
+    const val PARENT_SIGN_IN = "parent_sign_in?invite={invite}"
+    fun parentSignIn(invite: String? = null): String =
+        if (invite.isNullOrBlank()) "parent_sign_in?invite=" else "parent_sign_in?invite=$invite"
+    const val PARENT_EMAIL_SIGN_IN = "parent_email_sign_in?invite={invite}"
+    fun parentEmailSignIn(invite: String? = null): String =
+        if (invite.isNullOrBlank()) "parent_email_sign_in?invite="
+        else "parent_email_sign_in?invite=$invite"
     const val PARENT_DASHBOARD = "parent_dashboard"
     const val PARENT_KID_DETAIL = "parent_kid_detail/{kidId}"
     fun parentKidDetail(kidId: String) = "parent_kid_detail/$kidId"

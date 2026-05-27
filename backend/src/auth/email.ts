@@ -183,3 +183,35 @@ export async function findOrCreateParentByEmail(
     .run();
   return { parentId, familyId };
 }
+
+/**
+ * Add an email parent to an *existing* family identified by a co-parent
+ * invite code. Mirrors the same code path used by /auth/google when the
+ * client supplies inviteCode for a fresh sign-in. If the email already
+ * matches a parent, we just log them in (idempotent — they may have
+ * scanned the code on a device they were already a member of).
+ */
+export async function joinFamilyByInviteEmail(
+  env: Env,
+  args: { email: string; displayName: string; familyId: string },
+): Promise<{ parentId: string; familyId: string }> {
+  const existing = await env.DB.prepare(
+    "SELECT id, family_id FROM parents WHERE email = ?",
+  )
+    .bind(args.email)
+    .first<{ id: string; family_id: string }>();
+  if (existing) {
+    // If they're already a parent in *some* family, return them as-is
+    // rather than create a duplicate row in another family.
+    return { parentId: existing.id, familyId: existing.family_id };
+  }
+  const parentId = newId();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO parents (id, family_id, google_sub, email, display_name, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(parentId, args.familyId, `email:${args.email}`, args.email, args.displayName, now)
+    .run();
+  return { parentId, familyId: args.familyId };
+}

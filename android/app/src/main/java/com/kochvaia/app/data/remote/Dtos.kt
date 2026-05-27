@@ -15,6 +15,7 @@ data class EmailVerifyBody(
     val code: String,
     val familyTz: String? = null,
     val displayName: String? = null,
+    val inviteCode: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

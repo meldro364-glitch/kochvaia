@@ -83,6 +83,7 @@ class AuthRepository @Inject constructor(
         code: String,
         familyTz: String,
         displayName: String?,
+        inviteCode: String? = null,
     ): Session {
         val res = api.verifyEmailCode(
             EmailVerifyBody(
@@ -90,6 +91,7 @@ class AuthRepository @Inject constructor(
                 code = code,
                 familyTz = familyTz,
                 displayName = displayName,
+                inviteCode = inviteCode,
             ),
         )
         val session = Session(

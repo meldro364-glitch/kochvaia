@@ -91,7 +91,7 @@ class EmailSignInViewModel @Inject constructor(
         }
     }
 
-    fun verifyCode(email: String, code: String) {
+    fun verifyCode(email: String, code: String, inviteCode: String? = null) {
         val clean = code.filter(Char::isDigit)
         if (clean.length != 6) {
             _state.value = UiState.Error("Enter the 6-digit code from the email.", UiState.Stage.Code)
@@ -105,6 +105,7 @@ class EmailSignInViewModel @Inject constructor(
                     code = clean,
                     familyTz = TimeZone.getDefault().id,
                     displayName = null,
+                    inviteCode = inviteCode,
                 )
             }
                 .onSuccess { _state.value = UiState.Done }
@@ -124,6 +125,7 @@ class EmailSignInViewModel @Inject constructor(
 fun EmailSignInScreen(
     onSignedIn: () -> Unit,
     onBack: () -> Unit,
+    inviteCode: String? = null,
     viewModel: EmailSignInViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -174,7 +176,7 @@ fun EmailSignInScreen(
                             error = errState.message,
                             sending = false,
                             onCodeChange = { code = it },
-                            onSubmit = { viewModel.verifyCode(email, code) },
+                            onSubmit = { viewModel.verifyCode(email, code, inviteCode) },
                             onResend = { viewModel.resendCode(email) },
                             onChangeEmail = { viewModel.backToEmail() },
                         )
@@ -187,7 +189,7 @@ fun EmailSignInScreen(
                     error = null,
                     sending = false,
                     onCodeChange = { code = it },
-                    onSubmit = { viewModel.verifyCode(s.email, code) },
+                    onSubmit = { viewModel.verifyCode(s.email, code, inviteCode) },
                     onResend = { viewModel.resendCode(s.email) },
                     onChangeEmail = { viewModel.backToEmail() },
                 )

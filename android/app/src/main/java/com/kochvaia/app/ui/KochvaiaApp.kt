@@ -65,22 +65,25 @@ class RootViewModel @Inject constructor(
 private fun NavGraphBuilder.modePicker(nav: NavHostController) {
     composable(Routes.MODE_PICKER) {
         ModePickerScreen(
-            onPickParent = { nav.navigate(Routes.PARENT_SIGN_IN) },
+            onPickParent = { nav.navigate(Routes.parentSignIn()) },
             onPickKid = { nav.navigate(Routes.KID_PAIRING) },
         )
     }
     // Deep link from QR scan / browser: kochvaia://join?code=XXXX-YYYY.
+    // We can't tell from the code alone whether it's a parent-invite or a
+    // kid-pair code (both are ABCD-EFGH). Default to the parent flow with
+    // the code prefilled, since most deep-link traffic comes from a parent
+    // forwarding the invite link to their co-parent. Kid pairing happens
+    // device-local via the in-app QR scanner.
     composable(
         route = Routes.JOIN_FROM_DEEP_LINK,
         arguments = listOf(navArgument("code") { type = NavType.StringType; defaultValue = "" }),
         deepLinks = listOf(navDeepLink { uriPattern = "kochvaia://join?code={code}" }),
     ) { entry ->
         val code = entry.arguments?.getString("code").orEmpty()
-        // For now route deep links through the kid-pairing screen; it will
-        // detect parent-invite codes and bounce to ParentSignInScreen if needed.
         LaunchedEffect(code) {
             if (code.isNotBlank()) {
-                nav.navigate(Routes.KID_PAIRING) {
+                nav.navigate(Routes.parentSignIn(code)) {
                     popUpTo(Routes.MODE_PICKER) { inclusive = false }
                 }
             }
@@ -92,7 +95,11 @@ private fun NavGraphBuilder.parentGraph(
     nav: NavHostController,
     onSessionChanged: () -> Unit,
 ) {
-    composable(Routes.PARENT_SIGN_IN) {
+    composable(
+        route = Routes.PARENT_SIGN_IN,
+        arguments = listOf(navArgument("invite") { type = NavType.StringType; defaultValue = "" }),
+    ) { entry ->
+        val invite = entry.arguments?.getString("invite").orEmpty().ifBlank { null }
         ParentSignInScreen(
             onSignedIn = {
                 onSessionChanged()
@@ -100,10 +107,17 @@ private fun NavGraphBuilder.parentGraph(
                     popUpTo(Routes.MODE_PICKER) { inclusive = true }
                 }
             },
-            onUseEmail = { nav.navigate(Routes.PARENT_EMAIL_SIGN_IN) },
+            onUseEmail = { codeFromVm ->
+                nav.navigate(Routes.parentEmailSignIn(codeFromVm))
+            },
+            initialInviteCode = invite,
         )
     }
-    composable(Routes.PARENT_EMAIL_SIGN_IN) {
+    composable(
+        route = Routes.PARENT_EMAIL_SIGN_IN,
+        arguments = listOf(navArgument("invite") { type = NavType.StringType; defaultValue = "" }),
+    ) { entry ->
+        val invite = entry.arguments?.getString("invite").orEmpty().ifBlank { null }
         EmailSignInScreen(
             onSignedIn = {
                 onSessionChanged()
@@ -112,6 +126,7 @@ private fun NavGraphBuilder.parentGraph(
                 }
             },
             onBack = { nav.popBackStack() },
+            inviteCode = invite,
         )
     }
     composable(Routes.PARENT_DASHBOARD) {

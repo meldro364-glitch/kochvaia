@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { callApp, resetDb } from "./helpers.ts";
+import { callApp, resetDb, seedFamily } from "./helpers.ts";
 import { recordCode } from "../src/auth/email.ts";
 
 beforeEach(async () => {
@@ -118,5 +118,87 @@ describe("POST /auth/email/request", () => {
       body: { email: "not-an-email" },
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /auth/email/verify with inviteCode", () => {
+  it("joins an existing family when a parent-invite code is provided", async () => {
+    const fam = await seedFamily();
+    // Existing parent generates a co-parent invite QR.
+    const createRes = await callApp("POST", "/auth/qr/create", {
+      token: fam.parentToken,
+      body: { kind: "parent" },
+    });
+    const { code: inviteCode } = (await createRes.json()) as { code: string };
+
+    // Second parent: request + record a 6-digit email code, then verify
+    // with inviteCode so they join the existing family instead of starting
+    // a fresh one.
+    const email = "coparent@example.com";
+    const emailCode = "424242";
+    await recordCode(env, { email, code: emailCode, ip: null });
+
+    const res = await callApp("POST", "/auth/email/verify", {
+      body: { email, code: emailCode, inviteCode, displayName: "Co" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { parentId: string; familyId: string };
+    // CRITICAL: joined the existing family, didn't create a new one.
+    expect(body.familyId).toBe(fam.familyId);
+    expect(body.parentId).not.toBe(fam.parentId);
+
+    // The invite code is single-use — a second redemption fails.
+    const replay = await callApp("POST", "/auth/qr/redeem", {
+      body: { code: inviteCode },
+    });
+    expect(replay.status).toBe(404);
+  });
+
+  it("400 when the inviteCode is for a kid (not a co-parent)", async () => {
+    const fam = await seedFamily();
+    // Kid-pair codes have kind=kid; using one as inviteCode must be rejected.
+    const createRes = await callApp("POST", "/auth/qr/create", {
+      token: fam.parentToken,
+      body: { kind: "kid", kidId: fam.kidIds[0] },
+    });
+    const { code: inviteCode } = (await createRes.json()) as { code: string };
+
+    const email = "wrong@example.com";
+    await recordCode(env, { email, code: "131313", ip: null });
+    const res = await callApp("POST", "/auth/email/verify", {
+      body: { email, code: "131313", inviteCode },
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invite_not_for_parent");
+  });
+
+  it("idempotent: an email already a parent in some family is returned as-is", async () => {
+    const fam1 = await seedFamily();
+    // Pre-create a parent with this email in fam1 (not the inviter).
+    const email = "already@example.com";
+    await env.DB.prepare(
+      "INSERT INTO parents (id, family_id, google_sub, email, display_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind("PXX1", fam1.familyId, "email:already@example.com", email, "Pre", Date.now())
+      .run();
+
+    // Now they receive an invite to a *different* family. Backend should
+    // log them into their existing family rather than dual-mounting them.
+    const fam2 = await seedFamily();
+    const createRes = await callApp("POST", "/auth/qr/create", {
+      token: fam2.parentToken,
+      body: { kind: "parent" },
+    });
+    const { code: inviteCode } = (await createRes.json()) as { code: string };
+
+    await recordCode(env, { email, code: "212121", ip: null });
+    const res = await callApp("POST", "/auth/email/verify", {
+      body: { email, code: "212121", inviteCode },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { parentId: string; familyId: string };
+    // Returned to fam1, not fam2.
+    expect(body.familyId).toBe(fam1.familyId);
+    expect(body.parentId).toBe("PXX1");
   });
 });
