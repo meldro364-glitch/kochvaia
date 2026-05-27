@@ -162,6 +162,43 @@ landingRoutes.get("/", (c) => {
     footer a { color: var(--muted); margin-right: 16px; }
     footer a:hover { color: var(--slate); }
     a { color: var(--slate); text-decoration: underline; text-underline-offset: 3px; }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .cta {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 14px 22px;
+      border-radius: 14px;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      transition: transform 80ms ease, box-shadow 80ms ease;
+      min-width: 220px;
+    }
+    .cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    }
+    .cta-primary {
+      background: #232f3e; /* Amazon dark navy */
+      color: #fff;
+    }
+    .cta-primary .cta-line1 { font-size: 0.75rem; opacity: 0.85; }
+    .cta-primary .cta-line2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+    .cta-primary .cta-sub { font-size: 0.7rem; opacity: 0.7; margin-top: 2px; }
+    .cta-secondary {
+      background: var(--amber);
+      color: var(--slate);
+    }
+    .cta-secondary .cta-line1 { font-size: 0.75rem; opacity: 0.85; }
+    .cta-secondary .cta-line2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+    .cta-secondary .cta-sub { font-size: 0.7rem; opacity: 0.75; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -249,21 +286,26 @@ landingRoutes.get("/", (c) => {
 
     <section>
       <h2>Get the app</h2>
-      <p style="color: var(--muted); max-width: 60ch; margin-bottom: 16px;">
-        Kochvaia is currently in review on the Amazon Appstore (for Fire tablets)
-        and we'll add a Google Play link soon. For an Android phone you can
-        side-load the latest build:
+      <div class="cta-row">
+        <a class="cta cta-primary" href="https://www.amazon.com/dp/B0H2Y9JBPM">
+          <span class="cta-line1">Get it on</span>
+          <span class="cta-line2">Amazon Appstore</span>
+          <span class="cta-sub">Fire tablet · Fire TV</span>
+        </a>
+        <a class="cta cta-secondary" href="/download/kochvaia.apk">
+          <span class="cta-line1">⬇️&nbsp;&nbsp;Side-load</span>
+          <span class="cta-line2">Android APK</span>
+          <span class="cta-sub">v0.3.0 · 37 MB</span>
+        </a>
+      </div>
+      <p style="color: var(--muted); margin: 18px 0 0; max-width: 60ch;">
+        Amazon Appstore is the simplest install on Fire tablets — it'll keep
+        the app up to date automatically. Google Play link coming soon.
       </p>
-      <a href="/download/kochvaia.apk"
-         style="display: inline-block; background: var(--amber); color: var(--slate);
-                font-weight: 600; text-decoration: none; padding: 14px 22px;
-                border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-        ⬇️&nbsp;&nbsp;Download for Android (v0.3.0, 37 MB)
-      </a>
       <details style="margin-top: 16px; color: var(--muted); font-size: 0.92rem;">
-        <summary style="cursor: pointer;">How to install a side-loaded APK</summary>
+        <summary style="cursor: pointer;">How to install the Android side-load</summary>
         <ol style="margin: 12px 0 0 1.2rem; padding: 0;">
-          <li>Tap the download button above.</li>
+          <li>Tap the "Side-load Android APK" button above.</li>
           <li>When prompted, allow your browser to install unknown apps
               (Android asks once per source — Settings shortcut shows up).</li>
           <li>Open the downloaded <code>kochvaia.apk</code> and tap Install.</li>
