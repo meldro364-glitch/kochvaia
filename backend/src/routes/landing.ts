@@ -249,12 +249,31 @@ landingRoutes.get("/", (c) => {
 
     <section>
       <h2>Get the app</h2>
-      <p style="color: var(--muted); max-width: 60ch;">
+      <p style="color: var(--muted); max-width: 60ch; margin-bottom: 16px;">
         Kochvaia is currently in review on the Amazon Appstore (for Fire tablets)
-        and we'll add a Google Play link soon. For early access on an Android
-        phone, email
-        <a href="mailto:meldro364@gmail.com">meldro364@gmail.com</a>.
+        and we'll add a Google Play link soon. For an Android phone you can
+        side-load the latest build:
       </p>
+      <a href="/download/kochvaia.apk"
+         style="display: inline-block; background: var(--amber); color: var(--slate);
+                font-weight: 600; text-decoration: none; padding: 14px 22px;
+                border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        ⬇️&nbsp;&nbsp;Download for Android (v0.2.0, 37 MB)
+      </a>
+      <details style="margin-top: 16px; color: var(--muted); font-size: 0.92rem;">
+        <summary style="cursor: pointer;">How to install a side-loaded APK</summary>
+        <ol style="margin: 12px 0 0 1.2rem; padding: 0;">
+          <li>Tap the download button above.</li>
+          <li>When prompted, allow your browser to install unknown apps
+              (Android asks once per source — Settings shortcut shows up).</li>
+          <li>Open the downloaded <code>kochvaia.apk</code> and tap Install.</li>
+        </ol>
+        <p style="margin-top: 8px;">
+          Side-loaded apps don't auto-update. We'll publish a fresh build whenever
+          something meaningful changes — check back, or grab the latest from the
+          <a href="https://github.com/meldro364-glitch/kochvaia/releases">releases page</a>.
+        </p>
+      </details>
     </section>
 
     <footer>
@@ -268,4 +287,28 @@ landingRoutes.get("/", (c) => {
   // 5-minute browser cache — the page is static today; flush by redeploy.
   c.header("Cache-Control", "public, max-age=300");
   return c.html(html);
+});
+
+/**
+ * GET /download/kochvaia.apk → 302 to the latest GitHub release asset.
+ *
+ * We don't proxy the bytes through the Worker (subrequest size limits +
+ * pointless egress). The redirect keeps kochvaia.uk as the public-facing
+ * URL while GitHub serves the actual download. To publish a new version,
+ * `gh release create` a new tag and update LATEST_APK_URL.
+ *
+ * 302 (not 301) so we can repoint without browser-cache pain. Short cache
+ * so a fresh release propagates within minutes for everyone.
+ */
+const LATEST_APK_URL =
+  "https://github.com/meldro364-glitch/kochvaia/releases/download/v0.2.0/kochvaia-v2.apk";
+
+landingRoutes.get("/download/kochvaia.apk", (c) => {
+  // Only serve from the marketing host; API host stays a clean 404.
+  const url = new URL(c.req.url);
+  if (url.hostname.startsWith("api.")) {
+    return c.json({ error: "not_found" }, 404);
+  }
+  c.header("Cache-Control", "public, max-age=300");
+  return c.redirect(LATEST_APK_URL, 302);
 });
