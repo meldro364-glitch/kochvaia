@@ -258,7 +258,7 @@ landingRoutes.get("/", (c) => {
          style="display: inline-block; background: var(--amber); color: var(--slate);
                 font-weight: 600; text-decoration: none; padding: 14px 22px;
                 border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-        ⬇️&nbsp;&nbsp;Download for Android (v0.2.0, 37 MB)
+        ⬇️&nbsp;&nbsp;Download for Android (v0.3.0, 37 MB)
       </a>
       <details style="margin-top: 16px; color: var(--muted); font-size: 0.92rem;">
         <summary style="cursor: pointer;">How to install a side-loaded APK</summary>
@@ -301,7 +301,7 @@ landingRoutes.get("/", (c) => {
  * so a fresh release propagates within minutes for everyone.
  */
 const LATEST_APK_URL =
-  "https://github.com/meldro364-glitch/kochvaia/releases/download/v0.2.0/kochvaia-v2.apk";
+  "https://github.com/meldro364-glitch/kochvaia/releases/download/v0.3.0/kochvaia-v3.apk";
 
 landingRoutes.get("/download/kochvaia.apk", (c) => {
   // Only serve from the marketing host; API host stays a clean 404.
