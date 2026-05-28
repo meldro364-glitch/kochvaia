@@ -10,6 +10,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Haptic confirmation when the parent taps a notification action. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Daily 21:00 reminder must fire on time (even in Doze), so we use
+         AlarmManager.setExactAndAllowWhileIdle. USE_EXACT_ALARM is auto-
+         granted on API 33+; SCHEDULE_EXACT_ALARM covers API 31-32 and is
+         user-revocable (we fall back to inexact alarms if revoked). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Re-arm the daily reminder alarm across device reboots; alarms don't
+         survive a reboot otherwise. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".KochvaiaApp"
@@ -56,6 +65,23 @@
         <receiver
             android:name=".notify.StarActionReceiver"
             android:exported="false" />
+
+        <!-- 21:00 daily alarm target: fires the reminder worker and re-arms
+             the next day. Not exported — only AlarmManager invokes it. -->
+        <receiver
+            android:name=".notify.ReminderAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms the alarm after a reboot. Exported so the system can
+             deliver BOOT_COMPLETED; the broadcast is protected by the
+             RECEIVE_BOOT_COMPLETED permission. -->
+        <receiver
+            android:name=".notify.BootCompletedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Debug-only: adb broadcast triggers an instant ReminderWorker run.
              Exported so adb can reach it; gated by BuildConfig.DEBUG inside. -->

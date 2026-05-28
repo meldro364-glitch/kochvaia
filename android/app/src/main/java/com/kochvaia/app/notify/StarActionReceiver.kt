@@ -89,7 +89,7 @@ class StarActionReceiver : BroadcastReceiver() {
                 starRepo.days(kid.id, today, today).days.firstOrNull()?.status
             }.getOrNull() == "none"
         }
-        if (missing.isEmpty()) notifier.cancel() else notifier.post(missing, today)
+        if (missing.isEmpty()) notifier.cancel() else notifier.post(missing, today, alert = false)
     }
 
     companion object {

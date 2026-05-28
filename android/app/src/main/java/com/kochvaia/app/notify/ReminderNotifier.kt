@@ -41,12 +41,21 @@ class ReminderNotifier @Inject constructor(
         ensureChannel()
     }
 
-    fun post(missingKids: List<KidDto>, dateIso: String) {
+    /**
+     * @param alert when true (the daily reminder), force a fresh alert by
+     *   cancelling first — otherwise re-posting the same NOTIFICATION_ID over
+     *   a stale reminder still in the tray is a silent update (no sound/heads-
+     *   up) and the parent never notices the new day's reminder. Action-driven
+     *   refreshes pass false so awarding a star doesn't re-buzz the parent.
+     */
+    fun post(missingKids: List<KidDto>, dateIso: String, alert: Boolean = true) {
         if (missingKids.isEmpty()) {
             cancel()
             return
         }
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
+        if (alert) cancel()
 
         val names = missingKids.joinToString(", ") { it.displayName }
         val title = "Star reminder"

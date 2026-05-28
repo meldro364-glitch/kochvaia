@@ -22,9 +22,11 @@ class KochvaiaApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        // Re-arm the daily reminder after upgrade / device reboot, but only
-        // if there's an active parent session. enqueueUniquePeriodicWork with
-        // KEEP makes this idempotent.
+        // Belt-and-suspenders re-arm on app start so an upgrade picks up the
+        // daily alarm without waiting for the next reboot. BootCompletedReceiver
+        // handles the reboot case. setExactAndAllowWhileIdle with the same
+        // PendingIntent atomically replaces any existing alarm, so this is safe
+        // to call repeatedly.
         if (sessionStore.load()?.role == Role.parent) {
             reminderScheduler.enableDailyReminder()
         }
